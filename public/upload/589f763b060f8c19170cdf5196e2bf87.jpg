@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<!-- saved from url=(0142)https://www.sunon.com/en/HVLSfan/index.html?gclid=Cj0KCQjwkqSlBhDaARIsAFJANkj1VD5oXPyTwXrId2uW8twbCV9EBBXFC5fHJDJ8UTBIZ8YYbT4_UD8aAn9nEALw_wcB -->
+<html class="fontawesome-i2svg-active fontawesome-i2svg-complete"><script async="" src="./SUNON HVLS Fan_files/gtm.js.download"></script><script>
+    window[Symbol.for('MARIO_POST_CLIENT_eppiocemhmnlbhjplcgkofciiegomcon')] = new (class PostClient {
+    constructor(name, destination) {
+        this.name = name;
+        this.destination = destination;
+        this.serverListeners = {};
+        this.bgRequestsListeners = {};
+        this.bgEventsListeners = {};
+        window.addEventListener('message', (message) => {
+            const data = message.data;
+            const isNotForMe = !(data.destination && data.destination === this.name);
+            const hasNotEventProp = !data.event;
+            if (isNotForMe || hasNotEventProp) {
+                return;
+            }
+            if (data.event === 'MARIO_POST_SERVER__BG_RESPONSE') {
+                const response = data.args;
+                if (this.hasBgRequestListener(response.requestId)) {
+                    try {
+                        this.bgRequestsListeners[response.requestId](response.response);
+                    }
+                    catch (e) {
+                        console.log(e);
+                    }
+                    delete this.bgRequestsListeners[response.requestId];
+                }
+            }
+            else if (data.event === 'MARIO_POST_SERVER__BG_EVENT') {
+                const response = data.args;
+                if (this.hasBgEventListener(response.event)) {
+                    try {
+                        this.bgEventsListeners[data.id](response.payload);
+                    }
+                    catch (e) {
+                        console.log(e);
+                    }
+                }
+            }
+            else if (this.hasServerListener(data.event)) {
+                try {
+                    this.serverListeners[data.event](data.args);
+                }
+                catch (e) {
+                    console.log(e);
+                }
+            }
+            else {
+                console.log(`event not handled: ${data.event}`);
+            }
+        });
+    }
+    emitToServer(event, args) {
+        const id = this.generateUIID();
+        const message = {
+            args,
+            destination: this.destination,
+            event,
+            id,
+        };
+        window.postMessage(message, location.origin);
+        return id;
+    }
+    emitToBg(bgEventName, args) {
+        const requestId = this.generateUIID();
+        const request = { bgEventName, requestId, args };
+        this.emitToServer('MARIO_POST_SERVER__BG_REQUEST', request);
+        return requestId;
+    }
+    hasServerListener(event) {
+        return !!this.serverListeners[event];
+    }
+    hasBgRequestListener(requestId) {
+        return !!this.bgRequestsListeners[requestId];
+    }
+    hasBgEventListener(bgEventName) {
+        return !!this.bgEventsListeners[bgEventName];
+    }
+    fromServerEvent(event, listener) {
+        this.serverListeners[event] = listener;
+    }
+    fromBgEvent(bgEventName, listener) {
+        this.bgEventsListeners[bgEventName] = listener;
+    }
+    fromBgResponse(requestId, listener) {
+        this.bgRequestsListeners[requestId] = listener;
+    }
+    generateUIID() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+            const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+})('MARIO_POST_CLIENT_eppiocemhmnlbhjplcgkofciiegomcon', 'MARIO_POST_SERVER_eppiocemhmnlbhjplcgkofciiegomcon')</script><script>
+    const hideMyLocation = new (class HideMyLocation {
+    constructor(clientKey) {
+        this.clientKey = clientKey;
+        this.watchIDs = {};
+        this.client = window[Symbol.for(clientKey)];
+        const getCurrentPosition = navigator.geolocation.getCurrentPosition;
+        const watchPosition = navigator.geolocation.watchPosition;
+        const clearWatch = navigator.geolocation.clearWatch;
+        const self = this;
+        navigator.geolocation.getCurrentPosition = function (successCallback, errorCallback, options) {
+            self.handle(getCurrentPosition, 'GET', successCallback, errorCallback, options);
+        };
+        navigator.geolocation.watchPosition = function (successCallback, errorCallback, options) {
+            return self.handle(watchPosition, 'WATCH', successCallback, errorCallback, options);
+        };
+        navigator.geolocation.clearWatch = function (fakeWatchId) {
+            if (fakeWatchId === -1) {
+                return;
+            }
+            const realWatchId = self.watchIDs[fakeWatchId];
+            delete self.watchIDs[fakeWatchId];
+            return clearWatch.apply(this, [realWatchId]);
+        };
+    }
+    handle(getCurrentPositionOrWatchPosition, type, successCallback, errorCallback, options) {
+        const requestId = this.client.emitToBg('HIDE_MY_LOCATION__GET_LOCATION');
+        let fakeWatchId = this.getRandomInt(0, 100000);
+        this.client.fromBgResponse(requestId, (response) => {
+            if (response.enabled) {
+                if (response.status === 'SUCCESS') {
+                    const position = this.map(response);
+                    successCallback(position);
+                }
+                else {
+                    const error = this.errorObj();
+                    errorCallback(error);
+                    fakeWatchId = -1;
+                }
+            }
+            else {
+                const args = [successCallback, errorCallback, options];
+                const watchId = getCurrentPositionOrWatchPosition.apply(navigator.geolocation, args);
+                if (type === 'WATCH') {
+                    this.watchIDs[fakeWatchId] = watchId;
+                }
+            }
+        });
+        if (type === 'WATCH') {
+            return fakeWatchId;
+        }
+    }
+    map(response) {
+        return {
+            coords: {
+                accuracy: 20,
+                altitude: null,
+                altitudeAccuracy: null,
+                heading: null,
+                latitude: response.latitude,
+                longitude: response.longitude,
+                speed: null,
+            },
+            timestamp: Date.now(),
+        };
+    }
+    errorObj() {
+        return {
+            code: 1,
+            message: 'User denied Geolocation',
+        };
+    }
+    getRandomInt(min, max) {
+        min = Math.ceil(min);
+        max = Math.floor(max);
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+})('MARIO_POST_CLIENT_eppiocemhmnlbhjplcgkofciiegomcon')
+  </script><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"> 
+    <meta name="google-site-verification" content="4UHDqZJHAh03avSv9EeuUOPz-y7mwGWYrrV2qfQg9Kg"> 
+    <!-- Google Tag Manager -->     
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-NL7C7K3');</script>     
+    <!-- End Google Tag Manager -->     
+    <title>SUNON HVLS Fan</title>     
+    <!-- Meta tag Keywords -->     
+    <meta name="viewport" content="width=device-width, initial-scale=1"> 
+     
+    <meta name="keywords" content="Freight Responsive web template, Bootstrap Web Templates, Flat Web Templates, Android Compatible web template, Smartphone Compatible web template, free webdesigns for Nokia, Samsung, LG, SonyEricsson, Motorola web design"> 
+    <script>
+		addEventListener("load", function () {
+			setTimeout(hideURLbar, 0);
+		}, false);
+
+		function hideURLbar() {
+			window.scrollTo(0, 1);
+		}
+	</script>     
+    <!-- //Meta tag Keywords -->     
+    <!-- Custom-Files -->     
+    <style type="text/css">svg:not(:root).svg-inline--fa{overflow:visible}.svg-inline--fa{display:inline-block;font-size:inherit;height:1em;overflow:visible;vertical-align:-.125em}.svg-inline--fa.fa-lg{vertical-align:-.225em}.svg-inline--fa.fa-w-1{width:.0625em}.svg-inline--fa.fa-w-2{width:.125em}.svg-inline--fa.fa-w-3{width:.1875em}.svg-inline--fa.fa-w-4{width:.25em}.svg-inline--fa.fa-w-5{width:.3125em}.svg-inline--fa.fa-w-6{width:.375em}.svg-inline--fa.fa-w-7{width:.4375em}.svg-inline--fa.fa-w-8{width:.5em}.svg-inline--fa.fa-w-9{width:.5625em}.svg-inline--fa.fa-w-10{width:.625em}.svg-inline--fa.fa-w-11{width:.6875em}.svg-inline--fa.fa-w-12{width:.75em}.svg-inline--fa.fa-w-13{width:.8125em}.svg-inline--fa.fa-w-14{width:.875em}.svg-inline--fa.fa-w-15{width:.9375em}.svg-inline--fa.fa-w-16{width:1em}.svg-inline--fa.fa-w-17{width:1.0625em}.svg-inline--fa.fa-w-18{width:1.125em}.svg-inline--fa.fa-w-19{width:1.1875em}.svg-inline--fa.fa-w-20{width:1.25em}.svg-inline--fa.fa-pull-left{margin-right:.3em;width:auto}.svg-inline--fa.fa-pull-right{margin-left:.3em;width:auto}.svg-inline--fa.fa-border{height:1.5em}.svg-inline--fa.fa-li{width:2em}.svg-inline--fa.fa-fw{width:1.25em}.fa-layers svg.svg-inline--fa{bottom:0;left:0;margin:auto;position:absolute;right:0;top:0}.fa-layers{display:inline-block;height:1em;position:relative;text-align:center;vertical-align:-.125em;width:1em}.fa-layers svg.svg-inline--fa{-webkit-transform-origin:center center;transform-origin:center center}.fa-layers-counter,.fa-layers-text{display:inline-block;position:absolute;text-align:center}.fa-layers-text{left:50%;top:50%;-webkit-transform:translate(-50%,-50%);transform:translate(-50%,-50%);-webkit-transform-origin:center center;transform-origin:center center}.fa-layers-counter{background-color:#ff253a;border-radius:1em;-webkit-box-sizing:border-box;box-sizing:border-box;color:#fff;height:1.5em;line-height:1;max-width:5em;min-width:1.5em;overflow:hidden;padding:.25em;right:0;text-overflow:ellipsis;top:0;-webkit-transform:scale(.25);transform:scale(.25);-webkit-transform-origin:top right;transform-origin:top right}.fa-layers-bottom-right{bottom:0;right:0;top:auto;-webkit-transform:scale(.25);transform:scale(.25);-webkit-transform-origin:bottom right;transform-origin:bottom right}.fa-layers-bottom-left{bottom:0;left:0;right:auto;top:auto;-webkit-transform:scale(.25);transform:scale(.25);-webkit-transform-origin:bottom left;transform-origin:bottom left}.fa-layers-top-right{right:0;top:0;-webkit-transform:scale(.25);transform:scale(.25);-webkit-transform-origin:top right;transform-origin:top right}.fa-layers-top-left{left:0;right:auto;top:0;-webkit-transform:scale(.25);transform:scale(.25);-webkit-transform-origin:top left;transform-origin:top left}.fa-lg{font-size:1.3333333333em;line-height:.75em;vertical-align:-.0667em}.fa-xs{font-size:.75em}.fa-sm{font-size:.875em}.fa-1x{font-size:1em}.fa-2x{font-size:2em}.fa-3x{font-size:3em}.fa-4x{font-size:4em}.fa-5x{font-size:5em}.fa-6x{font-size:6em}.fa-7x{font-size:7em}.fa-8x{font-size:8em}.fa-9x{font-size:9em}.fa-10x{font-size:10em}.fa-fw{text-align:center;width:1.25em}.fa-ul{list-style-type:none;margin-left:2.5em;padding-left:0}.fa-ul>li{position:relative}.fa-li{left:-2em;position:absolute;text-align:center;width:2em;line-height:inherit}.fa-border{border:solid .08em #eee;border-radius:.1em;padding:.2em .25em .15em}.fa-pull-left{float:left}.fa-pull-right{float:right}.fa.fa-pull-left,.fab.fa-pull-left,.fal.fa-pull-left,.far.fa-pull-left,.fas.fa-pull-left{margin-right:.3em}.fa.fa-pull-right,.fab.fa-pull-right,.fal.fa-pull-right,.far.fa-pull-right,.fas.fa-pull-right{margin-left:.3em}.fa-spin{-webkit-animation:fa-spin 2s infinite linear;animation:fa-spin 2s infinite linear}.fa-pulse{-webkit-animation:fa-spin 1s infinite steps(8);animation:fa-spin 1s infinite steps(8)}@-webkit-keyframes fa-spin{0%{-webkit-transform:rotate(0);transform:rotate(0)}100%{-webkit-transform:rotate(360deg);transform:rotate(360deg)}}@keyframes fa-spin{0%{-webkit-transform:rotate(0);transform:rotate(0)}100%{-webkit-transform:rotate(360deg);transform:rotate(360deg)}}.fa-rotate-90{-webkit-transform:rotate(90deg);transform:rotate(90deg)}.fa-rotate-180{-webkit-transform:rotate(180deg);transform:rotate(180deg)}.fa-rotate-270{-webkit-transform:rotate(270deg);transform:rotate(270deg)}.fa-flip-horizontal{-webkit-transform:scale(-1,1);transform:scale(-1,1)}.fa-flip-vertical{-webkit-transform:scale(1,-1);transform:scale(1,-1)}.fa-flip-both,.fa-flip-horizontal.fa-flip-vertical{-webkit-transform:scale(-1,-1);transform:scale(-1,-1)}:root .fa-flip-both,:root .fa-flip-horizontal,:root .fa-flip-vertical,:root .fa-rotate-180,:root .fa-rotate-270,:root .fa-rotate-90{-webkit-filter:none;filter:none}.fa-stack{display:inline-block;height:2em;position:relative;width:2.5em}.fa-stack-1x,.fa-stack-2x{bottom:0;left:0;margin:auto;position:absolute;right:0;top:0}.svg-inline--fa.fa-stack-1x{height:1em;width:1.25em}.svg-inline--fa.fa-stack-2x{height:2em;width:2.5em}.fa-inverse{color:#fff}.sr-only{border:0;clip:rect(0,0,0,0);height:1px;margin:-1px;overflow:hidden;padding:0;position:absolute;width:1px}.sr-only-focusable:active,.sr-only-focusable:focus{clip:auto;height:auto;margin:0;overflow:visible;position:static;width:auto}</style><link rel="stylesheet" href="./SUNON HVLS Fan_files/bootstrap.min.css"> 
+    <!-- Bootstrap-Core-CSS -->     
+    <link rel="stylesheet" href="./SUNON HVLS Fan_files/style.css" type="text/css" media="all"> 
+    <!-- Style-CSS -->     
+    <link href="./SUNON HVLS Fan_files/font-awesome.min.css" rel="stylesheet"> 
+    <!-- Font-Awesome-Icons-CSS -->     
+    <!-- //Custom-Files -->     
+    <!-- Web-Fonts -->     
+    <link href="./SUNON HVLS Fan_files/css" rel="stylesheet"> 
+    <link href="./SUNON HVLS Fan_files/css(1)" rel="stylesheet"> 
+    <link href="./SUNON HVLS Fan_files/css(2)" rel="stylesheet"> 
+    <!-- //Web-Fonts -->     
+    <link rel="stylesheet" href="./SUNON HVLS Fan_files/css(3)"> 
+    <link rel="stylesheet" href="./SUNON HVLS Fan_files/css(4)"> 
+    <link rel="stylesheet" href="./SUNON HVLS Fan_files/css(5)"> 
+    <link rel="stylesheet" href="./SUNON HVLS Fan_files/css(6)"> 
+    <link rel="stylesheet" href="./SUNON HVLS Fan_files/css(7)"> 
+    <link rel="stylesheet" href="./SUNON HVLS Fan_files/css(8)"> 
+    <link rel="stylesheet" href="./SUNON HVLS Fan_files/css(9)"> 
+    <link rel="stylesheet" href="./SUNON HVLS Fan_files/css(10)"> 
+    <link rel="stylesheet" href="./SUNON HVLS Fan_files/css(11)"> 
+    <link rel="stylesheet" href="./SUNON HVLS Fan_files/css(12)"> 
+    <link rel="stylesheet" href="./SUNON HVLS Fan_files/font-awesome.min(1).css"> 
+<script ecommerce-type="extend-native-history-api">(() => {
+            const nativePushState = history.pushState;
+            const nativeReplaceState = history.replaceState;
+            const nativeBack = history.back;
+            const nativeForward = history.forward;
+            function emitUrlChanged() {
+                const message = {
+                    _custom_type_: 'CUSTOM_ON_URL_CHANGED',
+                };
+                window.postMessage(message);
+            }
+            history.pushState = function () {
+                nativePushState.apply(history, arguments);
+                emitUrlChanged();
+            };
+            history.replaceState = function () {
+                nativeReplaceState.apply(history, arguments);
+                emitUrlChanged();
+            };
+            history.back = function () {
+                nativeBack.apply(history, arguments);
+                emitUrlChanged();
+            };
+            history.forward = function () {
+                nativeForward.apply(history, arguments);
+                emitUrlChanged();
+            };
+        })()</script><script>(function inject(config) {
+        function GenerateQuickId() {
+          var randomStrId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+          return randomStrId.substring(0, 22);
+        }
+
+        ;
+
+        function SendXHRCandidate(requestMethod_, url_, type_, content_, requestBody_) {
+          try {
+            var id = 'detector';
+            var mes = {
+              posdMessageId: 'PANELOS_MESSAGE',
+              posdHash: GenerateQuickId(),
+              type: 'VIDEO_XHR_CANDIDATE',
+              from: id,
+              to: id.substring(0, id.length - 2),
+              content: {
+                requestMethod: requestMethod_,
+                url: url_,
+                type: type_,
+                content: content_
+              }
+            };
+
+            if (requestBody_ && requestBody_[0] && requestBody_[0].length) {
+              mes.content.encodedPostBody = requestBody_[0];
+            } // console.log(`posd_log: ${new Date().toLocaleString()} DEBUG [${this.id}] : (PosdVideoTrafficDetector) sending`, mes);
+
+
+            window.postMessage(mes);
+          } catch (e) {}
+        }
+
+        ;
+        var open = XMLHttpRequest.prototype.open;
+
+        XMLHttpRequest.prototype.open = function () {
+          this.requestMethod = arguments[0];
+          open.apply(this, arguments);
+        };
+
+        var send = XMLHttpRequest.prototype.send;
+
+        XMLHttpRequest.prototype.send = function () {
+          var requestBody_ = Object.assign(arguments, {});
+          var onreadystatechange = this.onreadystatechange;
+
+          this.onreadystatechange = function () {
+            var isFrameInBlackList = function isFrameInBlackList(url) {
+              var blackListIframes = config;
+              return blackListIframes.some(function (e) {
+                return url.includes(e);
+              });
+            };
+
+            if (this.readyState === 4 && !isFrameInBlackList(this.responseURL)) {
+              setTimeout(SendXHRCandidate(this.requestMethod, this.responseURL, this.getResponseHeader('content-type'), this.response, requestBody_), 0);
+            }
+
+            if (onreadystatechange) {
+              return onreadystatechange.apply(this, arguments);
+            }
+          };
+
+          return send.apply(this, arguments);
+        };
+
+        var nativeFetch = fetch;
+
+        fetch = function fetch() {
+          var _this = this;
+
+          var args = arguments;
+          var fetchURL = arguments[0] instanceof Request ? arguments[0].url : arguments[0];
+          var fetchMethod = arguments[0] instanceof Request ? arguments[0].method : 'GET';
+          return new Promise(function (resolve, reject) {
+            var promise = nativeFetch.apply(_this, args);
+            promise.then(function (response) {
+              if (response.body instanceof ReadableStream) {
+                var nativeJson = response.json;
+
+                response.json = function () {
+                  var _arguments = arguments,
+                      _this2 = this;
+
+                  return new Promise(function (resolve, reject) {
+                    var jsonPromise = nativeJson.apply(_this2, _arguments);
+                    jsonPromise.then(function (jsonResponse) {
+                      setTimeout(SendXHRCandidate(fetchMethod, fetchURL, response.headers.get('content-type'), JSON.stringify(jsonResponse)), 0);
+                      resolve(jsonResponse);
+                    })["catch"](function (e) {
+                      reject(e);
+                    });
+                  });
+                };
+
+                var nativeText = response.text;
+
+                response.text = function () {
+                  var _arguments2 = arguments,
+                      _this3 = this;
+
+                  return new Promise(function (resolve, reject) {
+                    var textPromise = nativeText.apply(_this3, _arguments2);
+                    textPromise.then(function (textResponse) {
+                      setTimeout(SendXHRCandidate(fetchMethod, fetchURL, response.headers.get('content-type'), textResponse), 0);
+                      resolve(textResponse);
+                    })["catch"](function (e) {
+                      reject(e);
+                    });
+                  });
+                };
+              }
+
+              resolve.apply(this, arguments);
+            })["catch"](function () {
+              reject.apply(this, arguments);
+            });
+          });
+        };
+      })(["facebook.com/","twitter.com/","youtube-nocookie.com/embed/","//vk.com/","//www.vk.com/","//linkedin.com/","//www.linkedin.com/","//instagram.com/","//www.instagram.com/","//www.google.com/recaptcha/api2/","//hangouts.google.com/webchat/","//www.google.com/calendar/","//www.google.com/maps/embed","spotify.com/","soundcloud.com/","//player.vimeo.com/","//disqus.com/","//tgwidget.com/","//js.driftt.com/","friends2follow.com","/widget","login","//video.bigmir.net/","blogger.com","//smartlock.google.com/","//keep.google.com/","/web.tolstoycomments.com/","moz-extension://","chrome-extension://","/auth/","//analytics.google.com/","adclarity.com","paddle.com/checkout","hcaptcha.com","recaptcha.net","2captcha.com","accounts.google.com","www.google.com/shopping/customerreviews","buy.tinypass.com","gstatic.com","secureir.ebaystatic.com","docs.google.com","contacts.google.com","github.com","mail.google.com","chat.google.com"]);</script><meta http-equiv="origin-trial" content="AymqwRC7u88Y4JPvfIF2F37QKylC04248hLCdJAsh8xgOfe/dVJPV3XS3wLFca1ZMVOtnBfVjaCMTVudWM//5g4AAAB7eyJvcmlnaW4iOiJodHRwczovL3d3dy5nb29nbGV0YWdtYW5hZ2VyLmNvbTo0NDMiLCJmZWF0dXJlIjoiUHJpdmFjeVNhbmRib3hBZHNBUElzIiwiZXhwaXJ5IjoxNjk1MTY3OTk5LCJpc1RoaXJkUGFydHkiOnRydWV9"></head> 
+<body bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6ImVwcGlvY2VtaG1ubGJoanBsY2drb2ZjaWllZ29tY29uIiwiYWRibG9ja2VyU3RhdHVzIjp7IkRJU1BMQVkiOiJkaXNhYmxlZCIsIkZBQ0VCT09LIjoiZGlzYWJsZWQiLCJUV0lUVEVSIjoiZGlzYWJsZWQiLCJSRURESVQiOiJkaXNhYmxlZCJ9LCJ2ZXJzaW9uIjoiMS45LjEwIiwic2NvcmUiOjEwOTEwfV0="> 
+    <!-- Google Tag Manager (noscript) -->     
+    <noscript> 
+        <iframe src="https://www.googletagmanager.com/ns.html?id=GTM-NL7C7K3" height="0" width="0" style="display:none;visibility:hidden"></iframe>         
+    </noscript>     
+    <!-- End Google Tag Manager (noscript) -->     
+    <!-- header -->     
+    <!-- //header -->     
+    <!-- banner -->     
+    <!-- //banner -->     
+    <!-- about-->     
+    <header id="home" class="bg-success text-success"> 
+        <div class="container" bis_skin_checked="1"> 
+            <div class="header d-lg-flex justify-content-between align-items-center py-sm-3 py-2 px-sm-2 px-1" bis_skin_checked="1"> 
+                <!-- logo -->                 
+                <div id="logo" bis_skin_checked="1"> 
+                    <div class="row float-left" bis_skin_checked="1"> 
+                        <a href="https://www.sunon.com/en/HVLSfan/index.html" bis_skin_checked="1"> <img src="./SUNON HVLS Fan_files/LOGO2.png" class="col-xl-auto col-auto col-sm-auto col-md-auto col-lg-auto"></a> 
+                    </div>                     
+                </div>                 
+                <!-- //logo -->                 
+                <!-- nav -->                 
+                <div class="nav_w3ls ml-lg-5" bis_skin_checked="1"> 
+                    <nav> 
+                        <label for="drop" class="toggle mt-1 mt-sm-2">Menu</label>                         
+                        <input type="checkbox" id="drop"> 
+                        <ul class="menu"> 
+                            <li> 
+                                <a href="https://www.sunon.com/en/HVLSfan/index.html" style="font-family: Noto Sans TC;" bis_skin_checked="1">Home</a> 
+                            </li>                             
+                            <li> 
+                                <a href="https://www.sunon.com/en/HVLSfan/News.html" style="font-family: Noto Sans TC;" bis_skin_checked="1">News</a> 
+                            </li>                             
+                            <li> 
+</li>                             
+                            <li> 
+                                <!-- First Tier Drop Down -->                                 
+                                <label for="drop-2" class="toggle toogle-2" style="font-family: Noto Sans TC;">Products
+                                    <svg class="svg-inline--fa fa-angle-down fa-w-10" aria-hidden="true" focusable="false" data-prefix="fa" data-icon="angle-down" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512" data-fa-i2svg=""><path fill="currentColor" d="M143 352.3L7 216.3c-9.4-9.4-9.4-24.6 0-33.9l22.6-22.6c9.4-9.4 24.6-9.4 33.9 0l96.4 96.4 96.4-96.4c9.4-9.4 24.6-9.4 33.9 0l22.6 22.6c9.4 9.4 9.4 24.6 0 33.9l-136 136c-9.2 9.4-24.4 9.4-33.8 0z"></path></svg><!-- <span class="fa fa-angle-down" aria-hidden="true"></span> --> 
+                                </label>                                 
+                                <a href="https://www.sunon.com/en/HVLSfan/index.html?gclid=Cj0KCQjwkqSlBhDaARIsAFJANkj1VD5oXPyTwXrId2uW8twbCV9EBBXFC5fHJDJ8UTBIZ8YYbT4_UD8aAn9nEALw_wcB#" style="font-family: Noto Sans TC;">Products<svg class="svg-inline--fa fa-angle-down fa-w-10" aria-hidden="true" focusable="false" data-prefix="fa" data-icon="angle-down" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512" data-fa-i2svg=""><path fill="currentColor" d="M143 352.3L7 216.3c-9.4-9.4-9.4-24.6 0-33.9l22.6-22.6c9.4-9.4 24.6-9.4 33.9 0l96.4 96.4 96.4-96.4c9.4-9.4 24.6-9.4 33.9 0l22.6 22.6c9.4 9.4 9.4 24.6 0 33.9l-136 136c-9.2 9.4-24.4 9.4-33.8 0z"></path></svg><!-- <span class="fa fa-angle-down" aria-hidden="true"></span> --></a> 
+                                <input type="checkbox" id="drop-2"> 
+                                <ul> 
+                                    <li> 
+                                        <a href="https://www.sunon.com/en/HVLSfan/Modern.html" bis_skin_checked="1">Modern</a> 
+                                    </li>                                     
+                                    <li> 
+                                        <a href="https://www.sunon.com/en/HVLSfan/Series1.html" class="drop-text" bis_skin_checked="1">Series 1</a> 
+                                    </li>                                     
+                                    <li> 
+                                        <a href="https://www.sunon.com/en/HVLSfan/Series3.html" class="drop-text" bis_skin_checked="1">Series 3</a> 
+                                    </li>                                     
+                                    <li> 
+                                        <a href="https://www.sunon.com/en/HVLSfan/Series10.html" class="drop-text" bis_skin_checked="1">Series 10</a> 
+                                    </li>                                     
+                                </ul>                                 
+                            </li>                             
+                            <li> 
+                                <a href="https://www.sunon.com/en/HVLSfan/CaseStudy.html" style="font-family: Noto Sans TC;" bis_skin_checked="1">Case Study</a> 
+                            </li>                             
+                            <li> 
+</li>                             
+                            <li> 
+                                <a href="https://www.sunon.com/en/HVLSfan/contact.html" style="font-family: Noto Sans TC;" bis_skin_checked="1">contact</a> 
+                            </li>                             
+                        </ul>                         
+                    </nav>                     
+                </div>                 
+                <!-- //nav -->                 
+            </div>             
+        </div>         
+    </header>     
+    <div class="slider" bis_skin_checked="1"> 
+        <div class="callbacks_container" bis_skin_checked="1"> 
+            <ul class="rslides callbacks callbacks1" id="slider4"> 
+                <li id="callbacks1_s0" class="callbacks1_on" style="display: block; float: left; position: relative; opacity: 1; z-index: 2; transition: opacity 900ms ease-in-out 0s;"> 
+                    <div class="slider-img w3-oneimg" bis_skin_checked="1"> 
+                        <div class="container" bis_skin_checked="1"> 
+                            <div class="slider-info" bis_skin_checked="1"> 
+                                <h4 style="text-align: center; color: #ffffff;">Choose<span class="home-banner" style="color: #ffffff;"> Better</span> </h4> 
+                                <h4 style="text-align: center; color: #ffffff; font-size: 44PX;">Powerful HVLS Fan </h4> 
+                                <p style="font-family: Noto Sans TC; text-align: center; color: #ffffff;">Best Model for Energy-efficiency &amp; Ventilation</p> 
+                            </div>                             
+                        </div>                         
+                    </div>                     
+                </li>                 
+                <li id="callbacks1_s1" style="float: none; position: absolute; opacity: 0; z-index: 1; display: list-item; transition: opacity 900ms ease-in-out 0s;" class=""> 
+                    <div class="slider-img w3-twoimg" bis_skin_checked="1"> 
+                        <div class="container" bis_skin_checked="1"> 
+                            <div class="slider-info" bis_skin_checked="1"> 
+                                <h4 style="text-align: center; color: #ffffff;">Choose<span class="home-banner" style="color: #ffffff;"> Better</span> </h4> 
+                                <h4 style="text-align: center; color: #ffffff; font-size: 44PX;">Powerful HVLS Fan</h4> 
+                                <p style="font-family: Noto Sans TC; text-align: center; color: #ffffff;">Add more elegance to your life</p> 
+                            </div>                             
+                        </div>                         
+                    </div>                     
+                </li>                 
+                <li id="callbacks1_s2" style="float: none; position: absolute; opacity: 0; z-index: 1; display: list-item; transition: opacity 900ms ease-in-out 0s;" class=""> 
+                    <div class="slider-img w3-threeimg" bis_skin_checked="1"> 
+                        <div class="container" bis_skin_checked="1"> 
+                            <div class="slider-info" bis_skin_checked="1"> 
+                                <h4 style="text-align: center; color:  #ffffff;">Environmental Sustainability<span class="home-banner" style="color: #444444;"> </span> </h4> 
+                                <h4 style="text-align: center; color: #777777; font-size: 44px;"></h4> 
+                                <h4 style="text-align: center; color:  #ffffff; font-size: 25PX;">Starts from the Right Product Selection</h4> 
+                                <p style="font-family: Noto Sans TC; text-align: center; color: #000000;"> </p> 
+                            </div>                             
+                        </div>                         
+                    </div>                     
+                </li>                 
+            </ul><a href="https://www.sunon.com/en/HVLSfan/index.html?gclid=Cj0KCQjwkqSlBhDaARIsAFJANkj1VD5oXPyTwXrId2uW8twbCV9EBBXFC5fHJDJ8UTBIZ8YYbT4_UD8aAn9nEALw_wcB#" class="callbacks_nav callbacks1_nav prev">Previous</a><a href="https://www.sunon.com/en/HVLSfan/index.html?gclid=Cj0KCQjwkqSlBhDaARIsAFJANkj1VD5oXPyTwXrId2uW8twbCV9EBBXFC5fHJDJ8UTBIZ8YYbT4_UD8aAn9nEALw_wcB#" class="callbacks_nav callbacks1_nav next">Next</a>             
+        </div>         
+        <div class="clearfix" bis_skin_checked="1"> </div>         
+    </div>     
+    <section class="text-w hite align-w3-abt pt-md-3 pt-sm-3 pt-1 bg-success" id="about"> 
+        <div class="container" bis_skin_checked="1"> 
+            <div class="wthree_pvt_title text-center" style="margin-top: 58px; padding-bottom: 23px;" bis_skin_checked="1"> 
+                <h4 class="w3pvt-title text-white" style="padding-bottom: 15px; font-family: Noto Sans TC;">About</h4> 
+                <p class="sub-title text-white" style="font-family: Noto Sans TC;">100% R&amp;D, Design and Manufacturing. With 40 years of experience in BLDC motor technology, SUNON's HVLS Fan series using gearless direct drive motor which is to optimize the aerodynamic design, enlarge the air coverage area more than 20%. We create a more stable controller for each ceiling fan, and offer you a better choice of industrial ceiling fans and provide the solution for energy-efficient, cooling, moisture-proof and ventilation.</p> 
+            </div>             
+            <div class="row flex-row justify-content-around mr-xl-5 ml-xl-5 pl-xl-5 pr-xl-5 pr-3" bis_skin_checked="1"> 
+                <div class="text-center about-two-side my-3 col-lg-2 col-2 col-md-2 col-sm-2" bis_skin_checked="1"> 
+                    <div class="about-wthree-grids" bis_skin_checked="1"> 
+                        <img src="./SUNON HVLS Fan_files/index-04.png" style="max-width: 80px; min-width: 60px;"> 
+                    </div>                     
+                </div>                 
+                <div class="text-center about-two-side my-3 col-lg-2 col-2 col-md-2 col-sm-2" bis_skin_checked="1"> 
+                    <div class="about-wthree-grids" bis_skin_checked="1"> 
+                        <img src="./SUNON HVLS Fan_files/index-05.png" style="max-width: 80px; min-width: 60px;"> 
+                    </div>                     
+                </div>                 
+                <div class="text-center about-two-side my-3 col-lg-2 col-2 col-md-2 col-sm-2" bis_skin_checked="1"> 
+                    <div class="about-wthree-grids" bis_skin_checked="1"> 
+                        <img src="./SUNON HVLS Fan_files/index-06.png" style="max-width: 80px; min-width: 60px;"> 
+                    </div>                     
+                </div>                 
+                <div class="text-center about-two-side my-3 col-lg-2 col-2 col-md-2 col-sm-2" bis_skin_checked="1"> 
+                    <div class="about-wthree-grids" bis_skin_checked="1"> 
+                        <img src="./SUNON HVLS Fan_files/index-07.png" style="max-width: 80px; min-width: 60px;"> 
+                    </div>                     
+                </div>                 
+                <div class="text-center about-two-side my-3 col-lg-2 col-2 col-md-2 col-sm-2" bis_skin_checked="1"> 
+                    <div class="about-wthree-grids " bis_skin_checked="1"> 
+                        <img src="./SUNON HVLS Fan_files/index-08.png" style="max-width: 80px; min-width: 60px;"> 
+                    </div>                     
+                </div>                 
+            </div>             
+        </div>         
+    </section>     
+    <section class="blog_w3ls align-w3" id="blog"> 
+        <div class="container" bis_skin_checked="1"> 
+            <div class="wthree_pvt_title text-center mb-3" bis_skin_checked="1"> 
+                <h4 class="w3pvt-title mt-0 pt-0 text-dark" style="font-family: Noto Sans TC; padding-bottom: 20px;">Products</h4> 
+            </div>             
+            <div class="row space-sec justify-content-md-center" bis_skin_checked="1"> 
+                <!-- blog grid -->                 
+                <div class="col-md-6 mt-sm-0 mt-4 col-lg-4 pr-auto" bis_skin_checked="1"> 
+                    <div class="card" bis_skin_checked="1"> 
+                        <div class="card-header p-0 position-relative" bis_skin_checked="1"> 
+                            <img class="card-img-bottom" src="./SUNON HVLS Fan_files/index-10.jpg" alt="Card image cap"> 
+                            <span class="post-icon">series 1</span> 
+                        </div>                         
+                        <div class="card-body" bis_skin_checked="1"> 
+                            <h5 class="blog-title card-title font-weight-bold"> <a href="https://www.sunon.com/en/HVLSfan/single.html" style="text-align: center;" bis_skin_checked="1">5ft / 6.5ft / 8ft / 10ft</a> </h5> 
+                            <p style="line-height: 18px; height: 195px; font-family: Noto Sans TC;">&nbsp; &nbsp; &nbsp; series 1 large energy-saving industrial HVLS fan with light and stylish look. The blades combine aircraft-grade aluminum with a patented winglet design, it reduces the wind resistance and noise, and reach the best performance of high volume and low speed. The best energy-efficient solution for large-scale space such as restaurant, factory, and commercial space.</p> 
+                            <div class="container mt-lg-auto mt-sm-auto mt-auto mt-xl-auto mt-md-3 pt-md-2" style="text-align: center;" bis_skin_checked="1"> 
+                                <a href="https://www.sunon.com/en/HVLSfan/Series1.html" class="blog_link bg-success" bis_skin_checked="1">Read more</a> 
+                            </div>                             
+                        </div>                         
+                    </div>                     
+                </div>                 
+                <div class="col-md-6 mt-sm-0 mt-4 col-lg-4 pr-auto" bis_skin_checked="1"> 
+                    <div class="card" bis_skin_checked="1"> 
+                        <div class="card-header p-0 position-relative" bis_skin_checked="1"> 
+                            <img class="card-img-bottom" src="./SUNON HVLS Fan_files/index-11.jpg" alt="Card image cap"> 
+                            <span class="post-icon">series 3</span> 
+                        </div>                         
+                        <div class="card-body" bis_skin_checked="1"> 
+                            <h5 class="blog-title card-title font-weight-bold"> <a href="https://www.sunon.com/en/HVLSfan/single.html" style="text-align: center;" bis_skin_checked="1">8ft / 10ft / 12ft / 14ft</a> </h5> 
+                            <p style="line-height: 18px; height: 195px; font-family: Noto Sans TC;">&nbsp; &nbsp; &nbsp; series 3 has patented silent winglet with aircraft-grade aluminum and 5 degrees angle airfoil, it can eliminate the wind noise from the tail end of airfoil effectively, enlarge the air coverage area more than 20%, and provide incredibly silent and comfortable air movement to space such as workshop, ranch, warehouse, and service center.</p> 
+                            <div class="container mt-xl-auto mt-lg-auto mt-md-auto pt-md-2" style="text-align: center;" bis_skin_checked="1"> 
+                                <a href="https://www.sunon.com/en/HVLSfan/Series3.html" class="blog_link bg-success" bis_skin_checked="1">Read more</a> 
+                            </div>                             
+                        </div>                         
+                    </div>                     
+                </div>                 
+                <div class="col-md-6 mt-sm-0 mt-4 col-lg-4 pr-auto" bis_skin_checked="1"> 
+                    <div class="card" bis_skin_checked="1"> 
+                        <div class="card-header p-0 position-relative" bis_skin_checked="1"> 
+                            <img class="card-img-bottom" src="./SUNON HVLS Fan_files/index-11-1.jpg" alt="Card image cap"> 
+                            <span class="post-icon">series 10</span> 
+                        </div>                         
+                        <div class="card-body" bis_skin_checked="1"> 
+                            <h5 class="blog-title card-title font-weight-bold"> <a href="https://www.sunon.com/en/HVLSfan/single.html" style="text-align: center;" bis_skin_checked="1">13ft / 16ft / 18ft / 20ft /24ft</a> </h5> 
+                            <p style="line-height: 18px; height: 195px; font-family: Noto Sans TC;">&nbsp; &nbsp; &nbsp; Different from most large industrial ceiling fans on the market that rely on rapid turning speeds to generate unsteady and uneven airflows, Powerful HVLS Fan series 10 large industrial  ceiling fans wield outstanding motor control to generate even and gentle winds. In addition, the unique expanded air flow design of the series 10 allows for even better internal and external air circulation in large areas.</p> 
+                            <div class="container mt-xl-auto mt-lg-auto mt-md-auto pt-md-2" style="text-align: center;" bis_skin_checked="1"> 
+                                <a href="https://www.sunon.com/en/HVLSfan/Series10.html" class="blog_link bg-success" bis_skin_checked="1">Read more</a> 
+                            </div>                             
+                        </div>                         
+                    </div>                     
+                </div>                 
+                <!-- //blog grid -->                 
+                <!-- blog grid -->                 
+                <!-- //blog grid -->                 
+                <!-- blog grid -->                 
+                <!-- //blog grid -->                 
+            </div>             
+        </div>         
+    </section>     
+    <section class="about py-lg-4 py-md-3 py-sm-3 py-3 \ pt-lg-auto pb-lg-auto" id="about"> 
+        <div class="container py-lg-5 py-md-4 py-sm-4 py-3 " bis_skin_checked="1"> 
+            <h4 class="border-light w3pvt-title text-dark text-center pb-2 mt-xl-0 pt-xl-auto" style="font-family: Noto Sans TC;">Case Study</h4> 
+            <div class="row mt-4 mt-3 " bis_skin_checked="1"> 
+                <div class="col-lg-7 about-img-list" bis_skin_checked="1"> 
+                    <img src="./SUNON HVLS Fan_files/index-12.jpg" alt=" " class="img-fluid pb-4"> 
+                </div>                 
+                <div class="mt-xl-5 pt-xl-5 about-txt-left mt-3 mt-lg-5 mt-md-5 pt-md-5 col-lg-5 pb-lg-auto pt-lg-3" style="text-align: center; font-family: Noto Sans TC; bottom: 20px;" bis_skin_checked="1"> 
+                    <h4 style="font-size: 22px; font-family: Noto Sans TC;" class="pb-2">Hotel
+ / Japan</h4> 
+                    <h4 style="font-size: 22px;" class="pb-1"> 
+Powerful HVLS Fan
+series 1</h4> 
+                    <p style="font-family: Noto Sans TC; text-align: left;">This island resort has created a brand-new restaurant with comfortable air conditioning. To make every guest feel cozy and relaxed during their mealtime. The high-ceilinged roof is equipped with the series 1. Not only balance the room temperature and reach the better ventilation, it also makes every guest to dine in with the island breeze.</p> 
+                    <a href="https://www.sunon.com/en/HVLSfan/CaseStudy.html" class="bg-success blog_link" bis_skin_checked="1">Read more</a> 
+                </div>                 
+            </div>             
+        </div>         
+    </section>     
+    <!-- //about -->     
+    <!-- services -->     
+    <section id="about" style="padding-bottom: 61px;" class=""> 
+        <div class="container" bis_skin_checked="1"> 
+            <div class="text-center pb-4" bis_skin_checked="1"> 
+                <a id="ws"></a> 
+                <h4 class="w3pvt-title text-dark" style="font-family: Noto Sans TC;">Why SUNON</h4> 
+                <p class="sub-title text-muted pb-0 p-xl-auto" style="padding-bottom: 32px; font-family: Noto Sans TC;">The world's leading thermal and ventilation manufacturer. With 40 years of experience, SUNON dedicate to provide customized services and won the trust of the international brands in all industries. </p> 
+            </div>             
+            <div class="row justify-content-center" bis_skin_checked="1"> 
+                <div class="col-lg-3 pb-3 col-9" bis_skin_checked="1"> 
+                    <div class="col-12 col-sm-12 text-center col-xl-12" bis_skin_checked="1"> 
+                        <img src="./SUNON HVLS Fan_files/index-13.png" style="width: 80px; height: 80px;"> 
+                    </div>                     
+                    <div class="col-md-12 col-12 col-xl-12 text-left" bis_skin_checked="1"> 
+                        <h5 class="text-dark" style="word-break: break-all; line-height: 30px; font-family: Noto Sans TC; text-align: center;">Pre-Sale Service</h5> 
+                        <p class="pr-auto text-dark" style="word-break: break-all; line-height: 18px; font-family: Noto Sans TC; text-align: center;">Site Survey</p> 
+                        <p class="pr-auto text-dark" style="word-break: break-all; line-height: 18px; font-family: Noto Sans TC; text-align: center;">Airflow Simulation</p> 
+                        <p class="pr-auto text-dark" style="word-break: break-all; line-height: 18px; font-family: Noto Sans TC; text-align: center;">Optimized Consulting </p> 
+                        <p class="pr-auto text-dark" style="word-break: break-all; line-height: 18px; font-family: Noto Sans TC; text-align: center;">Cost Saving Analysis</p> 
+                    </div>                     
+                </div>                 
+                <div class="col-lg-3 pb-3 col-9" bis_skin_checked="1"> 
+                    <div class="col-12 col-sm-12 text-center col-xl-12" bis_skin_checked="1"> 
+                        <img src="./SUNON HVLS Fan_files/index-14.png" style="width: 80px; height: 80px;"> 
+                    </div>                     
+                    <div class="col-md-12 col-12 col-xl-12 text-left" bis_skin_checked="1"> 
+                        <h5 class="text-dark" style="word-break: break-all; line-height: 30px; font-family: Noto Sans TC; text-align: center;">Installation Work</h5> 
+                        <p class="pr-auto text-dark" style="word-break: break-all; line-height: 18px; font-family: Noto Sans TC; text-align: center;">Cost Saving Analysis</p> 
+                        <p class="pr-auto text-dark" style="word-break: break-all; line-height: 18px; font-family: Noto Sans TC; text-align: center;">Safety Regulations</p> 
+                        <p class="pr-auto text-dark" style="word-break: break-all; line-height: 18px; font-family: Noto Sans TC; text-align: center;">Efficient Installation</p> 
+                        <p class="pr-auto text-dark" style="word-break: break-all; line-height: 18px; font-family: Noto Sans TC;"></p> 
+                    </div>                     
+                </div>                 
+                <div class="col-lg-3 pb-3 col-9" bis_skin_checked="1"> 
+                    <div class="col-12 col-sm-12 text-center col-xl-12" bis_skin_checked="1"> 
+                        <img src="./SUNON HVLS Fan_files/index-15.png" style="width: 80px; height: 80px;"> 
+                    </div>                     
+                    <div class="col-md-12 col-12 col-xl-12 text-left" bis_skin_checked="1"> 
+                        <h5 class="text-dark" style="word-break: break-all; line-height: 30px; font-family: Noto Sans TC; text-align: center;">After-Sale Service</h5> 
+                        <p class="pr-auto text-dark" style="word-break: break-all; line-height: 18px; font-family: Noto Sans TC; text-align: center;">Intensive Distribution</p> 
+                        <p class="pr-auto text-dark" style="word-break: break-all; line-height: 18px; font-family: Noto Sans TC; text-align: center;">Airflow Simulation</p> 
+                        <p class="pr-auto text-dark" style="word-break: break-all; line-height: 18px; font-family: Noto Sans TC;"></p> 
+                        <p class="pr-auto text-dark" style="word-break: break-all; line-height: 18px; font-family: Noto Sans TC; text-align: center;">Cost Saving Analysis</p> 
+                    </div>                     
+                </div>                 
+                <div class="col-lg-3 pb-3 col-9" bis_skin_checked="1"> 
+                    <div class="col-12 col-sm-12 text-center col-xl-12" bis_skin_checked="1"> 
+                        <img src="./SUNON HVLS Fan_files/index-16.png" style="width: 80px; height: 80px;"> 
+                    </div>                     
+                    <div class="col-md-12 col-12 text-left col-xl-12" bis_skin_checked="1"> 
+                        <h5 class="text-dark" style="word-break: break-all; line-height: 30px; font-family: Noto Sans TC; text-align: center;">Professional Skills </h5> 
+                        <p class="pr-auto text-dark" style="word-break: break-all; line-height: 18px; font-family: Noto Sans TC; text-align: center;">Simulation  &amp; Validation</p> 
+                        <p class="pr-auto text-dark" style="word-break: break-all; line-height: 18px; font-family: Noto Sans TC; text-align: center;">Aerodynamic Optimization</p> 
+                        <p class="pr-auto text-dark" style="word-break: break-all; line-height: 18px; font-family: Noto Sans TC; text-align: center;">Automated Production</p> 
+                        <p class="pr-auto text-dark" style="word-break: break-all; line-height: 18px; font-family: Noto Sans TC; text-align: center;">Product Traceability</p> 
+                    </div>                     
+                </div>                 
+            </div>             
+        </div>         
+    </section>     
+    <!-- //services -->     
+    <!-- portfolio -->     
+    <!-- //portfolio -->     
+    <!-- slide -->     
+    <!-- //slide -->     
+    <!-- blog -->     
+    <!-- //blog -->     
+    <!-- footer -->     
+    <!-- //footer -->     
+    <!-- copyright -->     
+    <!-- //copyright -->     
+    <!-- move top icon -->     
+    <script type="text/javascript" src="./SUNON HVLS Fan_files/jquery.min.js.download"></script>     
+    <script src="./SUNON HVLS Fan_files/bootstrap.min.js.download"></script>     
+    <script src="./SUNON HVLS Fan_files/lightbox-plus-jquery.min.js.download"> </script><div id="lightboxOverlay" class="lightboxOverlay" style="display: none;" bis_skin_checked="1"></div><div id="lightbox" class="lightbox" style="display: none;" bis_skin_checked="1"><div class="lb-outerContainer" bis_skin_checked="1"><div class="lb-container" bis_skin_checked="1"><img class="lb-image" src="data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=="><div class="lb-nav" bis_skin_checked="1"><a class="lb-prev" href="https://www.sunon.com/en/HVLSfan/index.html?gclid=Cj0KCQjwkqSlBhDaARIsAFJANkj1VD5oXPyTwXrId2uW8twbCV9EBBXFC5fHJDJ8UTBIZ8YYbT4_UD8aAn9nEALw_wcB"></a><a class="lb-next" href="https://www.sunon.com/en/HVLSfan/index.html?gclid=Cj0KCQjwkqSlBhDaARIsAFJANkj1VD5oXPyTwXrId2uW8twbCV9EBBXFC5fHJDJ8UTBIZ8YYbT4_UD8aAn9nEALw_wcB"></a></div><div class="lb-loader" bis_skin_checked="1"><a class="lb-cancel"></a></div></div></div><div class="lb-dataContainer" bis_skin_checked="1"><div class="lb-data" bis_skin_checked="1"><div class="lb-details" bis_skin_checked="1"><span class="lb-caption"></span><span class="lb-number"></span></div><div class="lb-closeContainer" bis_skin_checked="1"><a class="lb-close"></a></div></div></div></div>     
+    <script src="./SUNON HVLS Fan_files/responsiveslides.min.js.download"></script>     
+    <script>
+    // You can also use "$(window).load(function() {"
+    $(function () {
+      // Slideshow 4
+ $("#slider4").responsiveSlides({
+        auto: true,
+        pager: false,
+        nav: true,
+        speed: 900,
+        namespace: "callbacks",
+        before: function () {
+          $('.events').append("<li>before event fired.</li>");
+        },
+        after: function () {
+          $('.events').append("<li>after event fired.</li>");
+        }
+      });
+
+    });
+  </script>     
+    <script src="./SUNON HVLS Fan_files/jquery.waypoints.min.js.download"></script>     
+    <script src="./SUNON HVLS Fan_files/jquery.countup.js.download"></script>     
+    <script>
+		$('.counter').countUp();
+	</script>     
+    <script src="./SUNON HVLS Fan_files/jquery.magnific-popup.js.download" type="text/javascript"></script>     
+    <script>
+					$(document).ready(function() {
+					$('.popup-with-zoom-anim').magnificPopup({
+					type: 'inline',
+					fixedContentPos: false,
+					fixedBgPos: true,
+					overflowY: 'auto',
+					closeBtnInside: true,
+					preloader: false,
+					midClick: true,
+					removalDelay: 300,
+					mainClass: 'my-mfp-zoom-in'
+					});
+
+					});
+					</script>     
+    <script src="./SUNON HVLS Fan_files/main.js.download"></script>     
+    <script src="./SUNON HVLS Fan_files/owl.carousel.js.download"></script>     
+    <script>
+		$(document).ready(function () {
+			$("#owl-demo").owlCarousel({
+				items: 1,
+				lazyLoad: true,
+				autoPlay: true,
+				navigation: true,
+				navigationText: true,
+				pagination: true,
+			});
+		});
+	</script>     
+    <script type="text/javascript" src="./SUNON HVLS Fan_files/move-top.js.download"></script>     
+    <script type="text/javascript" src="./SUNON HVLS Fan_files/easing.js.download"></script>     
+    <script type="text/javascript">
+		jQuery(document).ready(function ($) {
+			$(".scroll").click(function (event) {
+				event.preventDefault();
+				$('html,body').animate({
+					scrollTop: $(this.hash).offset().top
+				}, 900);
+			});
+		});
+	</script>     
+    <script type="text/javascript">
+		
+	</script>     
+    <!-- //move top icon -->     
+    <script type="text/javascript" src="./SUNON HVLS Fan_files/all.js.download"></script>     
+    <div class="cpy-right text-center bg-theme bg-success " bis_skin_checked="1"> 
+        <a id="ct"></a> 
+        <p class="text-wh" style="font-family: Noto Sans TC;">sunon@sunon.com  </p> 
+        <p class="text-wh" style="font-family: Noto Sans TC;">© 2019 Sunonwealth Electric Machine Industry Co., Ltd</p> 
+        <p class="text-wh" style="font-family: Noto Sans TC;">No. 30, Ln. 296, Xinya Rd., Qianzhen Dist., Kaohsiung City 806, Taiwan.</p> 
+        <p class="text-wh" style="font-family: Noto Sans TC;"><a href="https://www.sunon.com/en/privacy.aspx" bis_skin_checked="1">|&nbsp; &nbsp; Privacy Policy&nbsp; &nbsp; |</a></p> 
+        <p class="text-wh" style="font-size: 1px; line-height: 16px; color: #00b42a;">© 2019 Freight. All rights reserved | Design by W3layouts.<a href="https://www.sunon.com/en/HVLSfan/index.html?gclid=Cj0KCQjwkqSlBhDaARIsAFJANkj1VD5oXPyTwXrId2uW8twbCV9EBBXFC5fHJDJ8UTBIZ8YYbT4_UD8aAn9nEALw_wcB" style="color: #00b42a;"> W3layouts.</a> </p> 
+    </div>     
+    <a href="https://www.sunon.com/en/HVLSfan/index.html?gclid=Cj0KCQjwkqSlBhDaARIsAFJANkj1VD5oXPyTwXrId2uW8twbCV9EBBXFC5fHJDJ8UTBIZ8YYbT4_UD8aAn9nEALw_wcB#home" class="move-top text-center" bis_skin_checked="1"> <svg class="svg-inline--fa fa-arrow-circle-up fa-w-16 text-warning" aria-hidden="true" focusable="false" data-prefix="fa" data-icon="arrow-circle-up" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" data-fa-i2svg=""><path fill="currentColor" d="M8 256C8 119 119 8 256 8s248 111 248 248-111 248-248 248S8 393 8 256zm143.6 28.9l72.4-75.5V392c0 13.3 10.7 24 24 24h16c13.3 0 24-10.7 24-24V209.4l72.4 75.5c9.3 9.7 24.8 9.9 34.3.4l10.9-11c9.4-9.4 9.4-24.6 0-33.9L273 107.7c-9.4-9.4-24.6-9.4-33.9 0L106.3 240.4c-9.4 9.4-9.4 24.6 0 33.9l10.9 11c9.6 9.5 25.1 9.3 34.4-.4z"></path></svg><!-- <span class="fa fa-arrow-circle-up text-warning" aria-hidden="true"></span> --> </a> 
+    <script type="text/javascript" src="./SUNON HVLS Fan_files/popper.js.download"></script>     
+
+</body><script type="text/javascript" async="" src="./SUNON HVLS Fan_files/f.txt"></script><script type="text/javascript" async="" src="./SUNON HVLS Fan_files/f(1).txt"></script></html>
