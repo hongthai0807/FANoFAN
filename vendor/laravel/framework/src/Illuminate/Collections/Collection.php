@@ -424,13 +424,12 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Remove an item from the collection by key.
      *
-     * \Illuminate\Contracts\Support\Arrayable<array-key, TValue>|iterable<array-key, TKey>|TKey  $keys
-     *
+     * @param  TKey|array<array-key, TKey>  $keys
      * @return $this
      */
     public function forget($keys)
     {
-        foreach ($this->getArrayableItems($keys) as $key) {
+        foreach ((array) $keys as $key) {
             $this->offsetUnset($key);
         }
 

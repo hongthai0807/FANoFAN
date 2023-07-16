@@ -86,7 +86,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Get a default cloud filesystem instance.
      *
-     * @return \Illuminate\Contracts\Filesystem\Cloud
+     * @return \Illuminate\Contracts\Filesystem\Filesystem
      */
     public function cloud()
     {

@@ -96,11 +96,9 @@ class Builder implements BuilderContract
         'avg',
         'count',
         'dd',
-        'ddRawSql',
         'doesntExist',
         'doesntExistOr',
         'dump',
-        'dumpRawSql',
         'exists',
         'existsOr',
         'explain',
@@ -118,7 +116,6 @@ class Builder implements BuilderContract
         'rawValue',
         'sum',
         'toSql',
-        'toRawSql',
     ];
 
     /**
